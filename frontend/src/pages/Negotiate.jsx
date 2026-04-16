@@ -71,7 +71,6 @@ export default function Negotiate() {
       const res = await axios.post(`${API}/negotiate/start`, {
         ...form,
         farmer_id: 'demo-farmer-' + Date.now(),
-        strategy,
       })
       setSession(res.data)
       setMessages([{

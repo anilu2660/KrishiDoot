@@ -74,14 +74,17 @@ Inspect the image and respond ONLY with this exact JSON (no markdown, no explana
 }}"""
 
     try:
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
         import base64
-        image_part = {"inline_data": {"mime_type": mime_type, "data": raw_image}}
+        from google.genai import types as genai_types
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        image_bytes = base64.b64decode(raw_image)
+        image_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
         response = client.models.generate_content(
-            model="gemini-1.5-pro",
+            model="gemini-2.5-flash",
             contents=[prompt, image_part],
         )
         result = _extract_json_payload(response.text)
         return GradeResponse(**result)
-    except Exception:
+    except Exception as e:
+        print(f"[vision] Gemini grading failed: {e}")
         return _fallback_grade(normalized_crop)
