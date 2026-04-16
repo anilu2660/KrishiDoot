@@ -2,7 +2,7 @@ import httpx
 
 from config import settings
 
-APMC_API_BASE = "https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070"
+APMC_API_BASE = "https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24"
 
 
 def _normalize_label(value: str) -> str:
