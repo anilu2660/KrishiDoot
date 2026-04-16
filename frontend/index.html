@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" class="bg-gray-950">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <meta name="theme-color" content="#111827" />
+    <meta name="description" content="KrishiDoot.AI — AI-powered crop negotiation for Indian farmers" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+            colors: { gray: { 950: '#0a0a0a' } },
+          },
+        },
+      }
+    </script>
+    <style>
+      .swiper-pagination-bullet { background: #374151 !important; opacity: 1 !important; }
+      .swiper-pagination-bullet-active { background: #4ade80 !important; }
+      html { scroll-behavior: auto; background: #0a0a0a; }
+      body { background: #0a0a0a; }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: #111827; }
+      ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    </style>
+    <title>KrishiDoot.AI — Fair prices for every Indian farmer</title>
+  </head>
+  <body class="font-sans antialiased bg-gray-950 text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
