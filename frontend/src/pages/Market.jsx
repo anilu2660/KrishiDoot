@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import gsap from 'gsap'
 import axios from 'axios'
 import { SELECT_CLS, INPUT_CLS, ErrorAlert, SpinnerIcon } from '../components/ui.jsx'
 
@@ -18,7 +19,6 @@ const STATES = [
   'Telangana', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
 ]
 
-// State geographic centers for initial map view
 const STATE_CENTERS = {
   'karnataka': [15.32, 75.71], 'maharashtra': [19.75, 75.71],
   'punjab': [31.15, 75.34], 'uttar pradesh': [26.85, 80.95],
@@ -30,17 +30,17 @@ const STATE_CENTERS = {
 }
 
 const PIN_COLORS = [
-  { bg: '#f59e0b', border: '#d97706', text: '#fff' }, // gold — rank 1
-  { bg: '#9ca3af', border: '#6b7280', text: '#fff' }, // silver — rank 2
-  { bg: '#4b5563', border: '#374151', text: '#d1d5db' }, // gray — rank 3
-  { bg: '#374151', border: '#1f2937', text: '#9ca3af' }, // dim — rank 4
+  { bg: '#f59e0b', border: '#d97706', text: '#fff' },
+  { bg: '#9ca3af', border: '#6b7280', text: '#fff' },
+  { bg: '#4b5563', border: '#374151', text: '#d1d5db' },
+  { bg: '#374151', border: '#1f2937', text: '#9ca3af' },
 ]
 
 const RANK_STYLE = [
-  { border: 'border-yellow-400/40', bg: 'bg-yellow-400/5',  badge: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30' },
-  { border: 'border-gray-400/30',   bg: 'bg-gray-400/5',    badge: 'bg-gray-600/40 text-gray-300 border-gray-500/30' },
-  { border: 'border-gray-700',      bg: 'bg-transparent',   badge: 'bg-gray-800 text-gray-400 border-gray-700' },
-  { border: 'border-gray-700',      bg: 'bg-transparent',   badge: 'bg-gray-800 text-gray-500 border-gray-700' },
+  { border: 'rgba(250,204,21,0.35)',  bg: 'rgba(250,204,21,0.04)',  badge: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30' },
+  { border: 'rgba(156,163,175,0.25)', bg: 'rgba(156,163,175,0.04)', badge: 'bg-gray-600/40 text-gray-300 border-gray-500/30' },
+  { border: 'rgba(42,58,43,0.5)',     bg: 'transparent',            badge: 'bg-gray-800 text-gray-400 border-gray-700' },
+  { border: 'rgba(42,58,43,0.4)',     bg: 'transparent',            badge: 'bg-gray-800 text-gray-500 border-gray-700' },
 ]
 
 function createPinIcon(rank) {
@@ -78,16 +78,17 @@ function MandiMap({ mandis }) {
   if (!withCoords.length) return null
 
   const positions = withCoords.map(m => [m.lat, m.lon])
-  const center = STATE_CENTERS[
-    withCoords[0]?.district?.toLowerCase()
-  ] || positions[0]
+  const center = STATE_CENTERS[withCoords[0]?.district?.toLowerCase()] || positions[0]
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-gray-700 shadow-lg" style={{ height: '220px' }}>
+    <div
+      className="market-map rounded-2xl overflow-hidden shadow-lg"
+      style={{ height: '220px', border: '1px solid rgba(42,58,43,0.7)' }}
+    >
       <MapContainer
         center={center}
         zoom={7}
-        style={{ height: '100%', width: '100%', background: '#111827' }}
+        style={{ height: '100%', width: '100%', background: '#0d1410' }}
         zoomControl={false}
         scrollWheelZoom={false}
       >
@@ -125,7 +126,8 @@ function MapPinIcon() {
 function TrendBadge({ trend }) {
   if (trend === 'up')   return <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">↑ Rising</span>
   if (trend === 'down') return <span className="text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">↓ Falling</span>
-  return <span className="text-xs font-semibold text-gray-400 bg-gray-700/50 border border-gray-600 px-2 py-0.5 rounded-full">→ Stable</span>
+  return <span className="text-xs font-semibold text-gray-400 border border-gray-700 px-2 py-0.5 rounded-full"
+    style={{ background: 'rgba(42,58,43,0.3)' }}>→ Stable</span>
 }
 
 function SupplyBar({ arrivals }) {
@@ -136,10 +138,10 @@ function SupplyBar({ arrivals }) {
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-[10px] text-gray-500">
-        <span className="uppercase tracking-wide font-semibold">Supply</span>
+        <span className="uppercase tracking-widest font-semibold font-display">Supply</span>
         <span className="text-gray-400 font-medium">{arrivals}t · {label}</span>
       </div>
-      <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(42,58,43,0.4)' }}>
         <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -153,6 +155,44 @@ export default function Market() {
   const [result, setResult]               = useState(null)
   const [loading, setLoading]             = useState(false)
   const [error, setError]                 = useState(null)
+
+  const pageRef    = useRef(null)
+  const resultsRef = useRef(null)
+
+  /* Page entrance */
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from('.market-header', { y: -16, autoAlpha: 0, duration: 0.45, ease: 'power3.out' })
+      gsap.from('.market-controls', { y: 20, autoAlpha: 0, duration: 0.5, ease: 'power3.out', delay: 0.08 })
+    }, pageRef)
+    return () => ctx.revert()
+  }, [])
+
+  /* Results reveal */
+  useEffect(() => {
+    if (!result || !resultsRef.current) return
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+
+      tl.from('.market-map', {
+        autoAlpha: 0, scale: 0.97, duration: 0.5,
+      })
+      .from('.market-rec-banner', {
+        y: -20, autoAlpha: 0, duration: 0.45,
+      }, '-=0.2')
+      .from('.market-section-label', {
+        autoAlpha: 0, duration: 0.3,
+      }, '-=0.1')
+      .from('.market-mandi-card', {
+        y: 28, autoAlpha: 0, duration: 0.45,
+        stagger: { each: 0.09 },
+      }, '-=0.1')
+      .from('.market-attribution', {
+        autoAlpha: 0, duration: 0.3,
+      }, '-=0.1')
+    }, resultsRef)
+    return () => ctx.revert()
+  }, [result])
 
   const fetchMandis = async () => {
     setLoading(true)
@@ -186,19 +226,27 @@ export default function Market() {
   const second = sorted[1]
   const extraPerKg = best && second ? (best.net - second.net).toFixed(2) : null
 
+  const cardStyle = {
+    background: 'linear-gradient(145deg, #0d1410 0%, #111a13 100%)',
+    borderColor: 'rgba(42,58,43,0.7)',
+  }
+
   return (
-    <div className="pt-6 pb-4 space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Best Mandi Finder</h1>
-        <p className="text-sm text-gray-400 mt-0.5">See today's prices on a map — find where to sell for maximum profit.</p>
+    <div ref={pageRef} className="pt-6 pb-4 space-y-4">
+
+      {/* ── Header ──────────────────────────────────────────────── */}
+      <div className="market-header">
+        <h1 className="text-xl font-display font-bold text-white tracking-tight">Best Mandi Finder</h1>
+        <p className="text-sm text-gray-400 mt-0.5 leading-relaxed">
+          See today's prices on a map — find where to sell for maximum profit.
+        </p>
       </div>
 
-      {/* Controls */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4">
+      {/* ── Controls ────────────────────────────────────────────── */}
+      <div className="market-controls border rounded-2xl p-4 space-y-4" style={cardStyle}>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Crop</label>
+            <label className="block text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-widest font-display">Crop</label>
             <select className={SELECT_CLS} value={crop} onChange={e => { setCrop(e.target.value); setResult(null) }}>
               {CROPS.map(c => (
                 <option key={c} value={c} className="bg-gray-800">
@@ -208,7 +256,7 @@ export default function Market() {
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">State</label>
+            <label className="block text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-widest font-display">State</label>
             <select className={SELECT_CLS} value={state} onChange={e => { setState(e.target.value); setResult(null) }}>
               {STATES.map(s => (
                 <option key={s} value={s} className="bg-gray-800">{s}</option>
@@ -218,7 +266,7 @@ export default function Market() {
         </div>
 
         <div>
-          <label className="block text-[11px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+          <label className="block text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-widest font-display">
             Transport Rate
             <span className="ml-1.5 text-gray-600 font-normal normal-case">₹/kg per km</span>
           </label>
@@ -239,7 +287,11 @@ export default function Market() {
         <button
           onClick={fetchMandis}
           disabled={loading}
-          className="w-full bg-green-600 hover:bg-green-500 active:scale-[0.98] text-white py-3 rounded-xl text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+          className="w-full text-white py-3.5 rounded-xl text-sm font-semibold font-display disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity duration-150"
+          style={{
+            background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+            boxShadow: loading ? 'none' : '0 4px 20px rgba(22,163,74,0.28)',
+          }}
         >
           {loading
             ? <><SpinnerIcon /> Fetching mandi prices…</>
@@ -247,21 +299,26 @@ export default function Market() {
         </button>
       </div>
 
-      {/* Results */}
+      {/* ── Results ─────────────────────────────────────────────── */}
       {result && sorted.length > 0 && (
-        <div className="space-y-3">
+        <div ref={resultsRef} className="space-y-3">
+
           {/* Map */}
           <MandiMap mandis={sorted} />
 
           {/* Recommendation banner */}
-          <div className="bg-green-500/10 border border-green-500/25 rounded-2xl p-4">
+          <div
+            className="market-rec-banner rounded-2xl p-4"
+            style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.22)' }}
+          >
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 bg-green-500/20 border border-green-500/30 rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-green-400"
+                style={{ background: 'rgba(22,163,74,0.18)', border: '1px solid rgba(22,163,74,0.25)' }}>
                 <MapPinIcon />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-green-400 uppercase tracking-widest mb-0.5">Best Choice Today</p>
-                <p className="text-base font-bold text-white leading-tight">{best.name}</p>
+                <p className="text-[10px] font-bold text-green-400 uppercase tracking-widest mb-0.5 font-display">Best Choice Today</p>
+                <p className="text-base font-bold text-white leading-tight font-display">{best.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{best.district} · {best.distance_km} km away</p>
                 {extraPerKg && parseFloat(extraPerKg) > 0 && (
                   <p className="text-xs text-emerald-400 mt-1.5 font-semibold">
@@ -270,32 +327,42 @@ export default function Market() {
                 )}
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="text-2xl font-black text-white">₹{best.net}</p>
+                <p className="text-2xl font-black text-white font-display">₹{best.net}</p>
                 <p className="text-[10px] text-gray-500 font-medium">net/kg</p>
               </div>
             </div>
           </div>
 
-          {/* Mandi cards */}
-          <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-1">
+          {/* Section label */}
+          <p className="market-section-label text-[10px] font-bold text-gray-600 uppercase tracking-widest px-1 font-display">
             {sorted.length} Mandis · Ranked by Net Value After Transport
           </p>
 
+          {/* Mandi cards */}
           {sorted.map((m, i) => {
             const s = RANK_STYLE[Math.min(i, RANK_STYLE.length - 1)]
             const isBest = i === 0
             return (
-              <div key={m.name} className={`bg-gray-900 border rounded-2xl p-4 space-y-3 ${s.border} ${s.bg}`}>
+              <div
+                key={m.name}
+                className="market-mandi-card rounded-2xl p-4 space-y-3"
+                style={{
+                  background: isBest
+                    ? 'linear-gradient(145deg, rgba(22,163,74,0.06) 0%, #0d1410 50%)'
+                    : 'linear-gradient(145deg, #0d1410 0%, #111a13 100%)',
+                  border: `1px solid ${s.border}`,
+                }}
+              >
                 {/* Header */}
                 <div className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-7 h-7 rounded-lg border flex items-center justify-center text-xs font-black ${s.badge}`}>
+                  <div className={`flex-shrink-0 w-7 h-7 rounded-lg border flex items-center justify-center text-xs font-black font-display ${s.badge}`}>
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-white leading-tight">{m.name}</p>
+                      <p className="text-sm font-bold text-white leading-tight font-display">{m.name}</p>
                       {isBest && (
-                        <span className="text-[10px] font-bold text-yellow-300 bg-yellow-400/15 border border-yellow-400/30 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-yellow-300 bg-yellow-400/15 border border-yellow-400/25 px-2 py-0.5 rounded-full font-display">
                           BEST PRICE
                         </span>
                       )}
@@ -312,21 +379,24 @@ export default function Market() {
 
                 {/* Price grid */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-gray-800/70 border border-gray-700 rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Modal</p>
-                    <p className="text-base font-black text-white mt-0.5">₹{m.price}</p>
-                    <p className="text-[9px] text-gray-600">per kg</p>
-                  </div>
-                  <div className="bg-gray-800/70 border border-gray-700 rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Transport</p>
-                    <p className="text-base font-black text-red-400 mt-0.5">−₹{m.transport}</p>
-                    <p className="text-[9px] text-gray-600">per kg</p>
-                  </div>
-                  <div className={`border rounded-xl p-2.5 text-center ${isBest ? 'bg-green-500/10 border-green-500/25' : 'bg-gray-800/70 border-gray-700'}`}>
-                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Net Value</p>
-                    <p className={`text-base font-black mt-0.5 ${isBest ? 'text-emerald-400' : 'text-white'}`}>₹{m.net}</p>
-                    <p className="text-[9px] text-gray-600">per kg</p>
-                  </div>
+                  {[
+                    { label: 'Modal', val: `₹${m.price}`, color: 'text-white' },
+                    { label: 'Transport', val: `−₹${m.transport}`, color: 'text-red-400' },
+                    { label: 'Net Value', val: `₹${m.net}`, color: isBest ? 'text-emerald-400' : 'text-white', highlight: isBest },
+                  ].map(({ label, val, color, highlight }) => (
+                    <div
+                      key={label}
+                      className="rounded-xl p-2.5 text-center"
+                      style={{
+                        background: highlight ? 'rgba(22,163,74,0.08)' : 'rgba(24,32,25,0.7)',
+                        border: `1px solid ${highlight ? 'rgba(22,163,74,0.22)' : 'rgba(42,58,43,0.5)'}`,
+                      }}
+                    >
+                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest font-display">{label}</p>
+                      <p className={`text-base font-black mt-0.5 font-display ${color}`}>{val}</p>
+                      <p className="text-[9px] text-gray-600">per kg</p>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Supply bar */}
@@ -334,7 +404,10 @@ export default function Market() {
 
                 {/* BATNA advisory */}
                 {isBest && (
-                  <div className="flex items-start gap-2 bg-green-500/5 border border-green-500/15 rounded-xl p-2.5">
+                  <div
+                    className="flex items-start gap-2 rounded-xl p-2.5"
+                    style={{ background: 'rgba(22,163,74,0.05)', border: '1px solid rgba(22,163,74,0.14)' }}
+                  >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5 text-green-400 flex-shrink-0 mt-0.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                     </svg>
@@ -350,27 +423,34 @@ export default function Market() {
           })}
 
           {/* Attribution */}
-          <div className="flex items-center gap-2 px-1">
+          <div className="market-attribution flex items-center gap-2 px-1">
             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-            <p className="text-[11px] text-gray-600">
-              {result.data_source} · Map: OpenStreetMap / CARTO
-            </p>
+            <p className="text-[11px] text-gray-600">{result.data_source} · Map: OpenStreetMap / CARTO</p>
           </div>
         </div>
       )}
 
+      {/* ── Empty state ─────────────────────────────────────────── */}
       {!result && !loading && !error && (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center space-y-3">
+        <div
+          className="border rounded-2xl p-8 text-center space-y-4"
+          style={{ background: 'linear-gradient(145deg, #0d1410 0%, #111a13 100%)', borderColor: 'rgba(42,58,43,0.6)' }}
+        >
           <div className="flex justify-center">
-            <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(24,32,25,0.8)', border: '1px solid rgba(42,58,43,0.5)' }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1} className="w-8 h-8 text-gray-600">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
               </svg>
             </div>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-400">Compare mandis on a map</p>
-            <p className="text-xs text-gray-600 mt-1">Select crop + state · see map pins · net value auto-calculated after transport</p>
+            <p className="text-sm font-semibold text-gray-400 font-display">Compare mandis on a map</p>
+            <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+              Select crop + state · see map pins · net value auto-calculated after transport
+            </p>
           </div>
         </div>
       )}

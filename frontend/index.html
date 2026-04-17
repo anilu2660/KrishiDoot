@@ -8,27 +8,85 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
-            fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-            colors: { gray: { 950: '#0a0a0a' } },
+            fontFamily: {
+              sans:    ['DM Sans', 'system-ui', 'sans-serif'],
+              display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+            },
+            colors: {
+              gray: {
+                950: '#080c09',   /* green-tinted near-black */
+                900: '#0d1410',   /* green-tinted dark */
+                850: '#111a13',
+                800: '#182019',
+                750: '#1f2a20',
+                700: '#2a3a2b',
+              },
+            },
           },
         },
       }
     </script>
     <style>
-      .swiper-pagination-bullet { background: #374151 !important; opacity: 1 !important; }
+      /* ── Global tokens ─────────────────────────────────────── */
+      :root {
+        --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+        --dur-micro: 120ms;
+        --dur-ui: 240ms;
+        --dur-entrance: 560ms;
+      }
+
+      /* ── Base ──────────────────────────────────────────────── */
+      html { scroll-behavior: auto; background: #080c09; }
+      body { background: #080c09; line-height: 1.6; }
+
+      /* Extra breathing room for light-on-dark text */
+      p, li { line-height: 1.65; }
+
+      /* ── Headings use display font ──────────────────────────── */
+      h1, h2, h3, h4, .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.02em; }
+
+      /* ── Scrollbar ──────────────────────────────────────────── */
+      ::-webkit-scrollbar { width: 5px; }
+      ::-webkit-scrollbar-track { background: #0d1410; }
+      ::-webkit-scrollbar-thumb { background: #2a3a2b; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #16a34a44; }
+
+      /* ── Swiper ─────────────────────────────────────────────── */
+      .swiper-pagination-bullet { background: #2a3a2b !important; opacity: 1 !important; }
       .swiper-pagination-bullet-active { background: #4ade80 !important; }
-      html { scroll-behavior: auto; background: #0a0a0a; }
-      body { background: #0a0a0a; }
-      ::-webkit-scrollbar { width: 6px; }
-      ::-webkit-scrollbar-track { background: #111827; }
-      ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+
+      /* ── Button micro-interaction ───────────────────────────── */
+      button:active:not(:disabled) { transform: scale(0.97); }
+
+      /* ── Reduced motion ─────────────────────────────────────── */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      /* ── Ambient glow for key cards ─────────────────────────── */
+      .glow-green {
+        box-shadow: 0 0 40px -10px rgba(22, 163, 74, 0.25),
+                    0 0 80px -30px rgba(22, 163, 74, 0.12);
+      }
+      .glow-emerald {
+        box-shadow: 0 0 40px -10px rgba(52, 211, 153, 0.2),
+                    0 0 80px -30px rgba(52, 211, 153, 0.1);
+      }
+      .glow-amber {
+        box-shadow: 0 0 40px -10px rgba(251, 191, 36, 0.2),
+                    0 0 80px -30px rgba(251, 191, 36, 0.08);
+      }
     </style>
     <title>KrishiDoot.AI — Fair prices for every Indian farmer</title>
   </head>
