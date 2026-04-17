@@ -32,6 +32,10 @@ python -m telegram_bot.bot
 - **Supabase** — PostgreSQL DB (optional — sessions work in-memory without it)
 - **python-telegram-bot** — Telegram interface
 - **React 18 + Vite** — frontend at `frontend/` (`npm run dev` → localhost:5173)
+- **GSAP 3** — animation library: `gsap.context()` for scoped cleanup, page transitions, stagger reveals
+- **Space Grotesk** (display/headings) + **DM Sans** (body) — font stack via Google Fonts
+- **Green-tinted dark palette** — custom Tailwind: `gray-950: #080c09`, `gray-900: #0d1410`, etc.
+- **Global CSS tokens** — `--ease-out-expo`, `--dur-micro/ui/entrance`, reduced-motion support
 - **react-leaflet + leaflet** — APMC mandi map with ranked pins
 - **jsPDF** — client-side PDF receipt generation after negotiation
 
@@ -69,9 +73,9 @@ backend/
 frontend/
   src/pages/
     Landing.jsx        → Done (GSAP animated marketing page)
-    Grade.jsx          → Done (upload → grade → "Start Negotiation" auto-start CTA)
+    Grade.jsx          → Done (upload → grade → "Start Negotiation" auto-start CTA; GSAP timeline reveal: grade letter scale, stat stagger, confidence bar)
     Negotiate.jsx      → Done (multi-crop tabs, auto-start, PDF receipt, voice)
-    Market.jsx         → Done (Leaflet map with ranked pins + mandi cards)
+    Market.jsx         → Done (Leaflet map with ranked pins + mandi cards; GSAP map reveal + card stagger)
   src/components/ui.jsx → shared UI primitives (INPUT_CLS, SELECT_CLS, ErrorAlert, SpinnerIcon, LeafIcon, AlertIcon, InfoIcon)
     CropJourney.jsx    → Done (full beejai-to-bikri pipeline: 2-round weather-aware AI questions, adaptive task calendar, WeekCard, photo health check, auto plan update, PDF report)
   src/App.jsx          → Done (glassmorphism header + LIVE badge, 4-tab nav: Grade/Negotiate/Prices/Grow)
