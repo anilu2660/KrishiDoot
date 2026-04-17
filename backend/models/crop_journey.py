@@ -1,12 +1,18 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class QuestionsRequest(BaseModel):
     location: str
     month: int = Field(ge=1, le=12)
     land_photo_b64: Optional[str] = None
+
+
+class FollowupRequest(BaseModel):
+    location: str
+    month: int = Field(ge=1, le=12)
+    initial_answers: Dict[str, Any]
 
 
 class AnalyzeRequest(BaseModel):
@@ -37,6 +43,11 @@ class PhotoCheckRequest(BaseModel):
     photo_b64: str
     week: int
     stage: str
+
+
+class UpdatePlanRequest(BaseModel):
+    current_week: int
+    trigger: str = "manual"  # manual | weather_change | photo_check
 
 
 class CompleteJourneyRequest(BaseModel):

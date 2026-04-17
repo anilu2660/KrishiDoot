@@ -59,6 +59,9 @@ backend/
     apmc_api.py        → Done (MANDI_DB + coords, get_mandi_prices, FALLBACK_PRICES; get_modal_price uses local DB when DEMO_KEY set — no live API hit)
     vision.py          → Done (Gemini 2.5 Flash, auto-detect crop_type="auto")
     guardrails.py      → Done
+    weather_api.py     → Done (wttr.in free API, 5-min cache, current + 5-day forecast + Hinglish advisory; no API key)
+    subsidy_rss.py     → Done (PIB Agriculture RSS feed, 1-hr cache, crop/state keyword filtering)
+    crop_ai.py         → Done (all Crop Journey AI: 2-round questions, analyze+recommend, task calendar with per-week weather, photo health check, adaptive plan update, journey report)
   agents/              → Done (farmer_agent Hinglish, buyer_agent, orchestrator)
   db/schema.sql        → Person 1 (run once in Supabase SQL editor)
   telegram_bot/        → Person 1 (done)
@@ -70,7 +73,7 @@ frontend/
     Negotiate.jsx      → Done (multi-crop tabs, auto-start, PDF receipt, voice)
     Market.jsx         → Done (Leaflet map with ranked pins + mandi cards)
   src/components/ui.jsx → shared UI primitives (INPUT_CLS, SELECT_CLS, ErrorAlert, SpinnerIcon, LeafIcon, AlertIcon, InfoIcon)
-    CropJourney.jsx    → Done (beejai-to-bikri journey: AI questions, task calendar, weather, subsidies, report; auto-detected month + hardcoded schemes)
+    CropJourney.jsx    → Done (full beejai-to-bikri pipeline: 2-round weather-aware AI questions, adaptive task calendar, WeekCard, photo health check, auto plan update, PDF report)
   src/App.jsx          → Done (glassmorphism header + LIVE badge, 4-tab nav: Grade/Negotiate/Prices/Grow)
 ```
 
@@ -83,28 +86,65 @@ frontend/
 | GET | `/market/price?crop=&state=` | APMC modal price + fallback if rate-limited |
 | GET | `/market/mandis?crop=&state=` | 3-4 nearby mandis ranked by net value — includes lat/lon for map pins |
 | GET | `/docs` | Swagger UI |
-| POST | `/crop-journey/questions` | AI-generated onboarding questions (optional land photo) |
-| POST | `/crop-journey/analyze` | Analyze land + answers → crop recommendation + weather |
-| POST | `/crop-journey/start` | Start journey → generate AI task calendar (all weeks) |
-| GET | `/crop-journey/{id}` | Get full journey state |
+| POST | `/crop-journey/questions` | Weather-aware AI onboarding questions (optional land photo); returns `weather` block |
+| POST | `/crop-journey/followup-questions` | Round-2 targeted questions based on Round-1 answers + weather; returns `[]` if no follow-up needed |
+| POST | `/crop-journey/analyze` | Analyze land + answers + weather → crop recommendation with `weather_fit`, `weather_warnings` |
+| POST | `/crop-journey/start` | Start journey → AI task calendar (all weeks, each with `expected_weather` block) |
+| GET | `/crop-journey/{id}` | Get full journey state (includes `plan_updates_count`, `plan_update_log`) |
 | GET | `/crop-journey/{id}/weather` | 5-day weather via wttr.in (no API key) |
 | POST | `/crop-journey/{id}/task` | Toggle task completion |
-| POST | `/crop-journey/{id}/photo-check` | Gemini photo health analysis |
+| POST | `/crop-journey/{id}/photo-check` | Gemini photo health analysis — returns `weather_related_risks`, `do_not_do`, `plan_update_needed` |
+| POST | `/crop-journey/{id}/update-plan` | Adaptive re-plan: re-generates remaining weeks from `current_week` using fresh weather + latest photo; trigger: `manual\|weather_change\|photo_check` |
 | GET | `/crop-journey/{id}/subsidies` | PIB RSS govt scheme alerts |
-| POST | `/crop-journey/{id}/complete` | Mark sold → generate journey report |
+| POST | `/crop-journey/{id}/complete` | Mark sold → generate journey report with `roi_percent`, `weather_impact` |
 | GET | `/crop-journey/{id}/report` | Final PDF-ready report |
 
 ## Feature: Crop Journey (Fasal Journey) — Beejai to Bikri
-1. Farmer enters location + month (auto-detected via `new Date()`, shown read-only with "Badlo" override toggle), optionally uploads land photo
-2. Gemini generates 6 Hinglish onboarding questions (soil, water, budget, experience); when land photo is provided, Gemini adds `detected_from_photo` field to questions it can answer from the image — frontend auto-pre-fills those answers and shows a "📷 Photo se detect hua" badge
-3. AI analyzes answers + weather → recommends best crop with yield/income estimate
-4. Farmer picks sowing date + land size → AI generates week-by-week task calendar
-5. Dashboard: Tasks tab (checkbox per task), Weather tab (wttr.in forecast + advisory), Subsidies tab (PIB RSS + hardcoded schemes), Timeline tab
-6. Photo Check: upload crop photo at any week → Gemini returns health score + immediate action + subsidy tip
-7. Journey Complete: enter selling price → AI generates profit/loss report → PDF download
-- Journey state stored in-memory (`_journeys` dict in `routes/crop_journey.py`) — lost on restart
-- Journey ID persisted in localStorage (`kd_journey_id`) — auto-restores on page reload
-- Sahayata tab: always shows `HARDCODED_SCHEMES` (19 schemes — 4 national + state-specific for MH/PB/UP/RJ/MP/KA/GJ/HR); `extractState(location)` parses city/state name from location string to filter relevant state schemes; live PIB RSS results shown above if available
+
+### Two-Round AI Questioning with Live Weather Integration
+1. Farmer enters location + month (auto-detected via `new Date()`, read-only with "Badlo" toggle), optionally uploads land photo
+2. **Round 1**: `POST /crop-journey/questions` fetches wttr.in weather first → Gemini generates 6 Hinglish questions aware of current humidity/rain/temp (e.g., asks about backup water if dry forecast). Land photo detected fields auto-filled with "📷 Photo se detect hua" badge
+3. **Round 2** (conditional): `POST /crop-journey/followup-questions` — AI decides if follow-up needed based on answers + weather (rain-fed + dry forecast → ask backup; high humidity → ask sprayer; borewell → ask depth). Returns `[]` to skip straight to analysis
+4. AI analyzes all answers + live weather → recommends crop with `weather_fit` (blue block) + `weather_warnings` (amber block) + yield/income estimate
+5. Farmer picks sowing date + land size → `POST /start` fetches fresh weather → AI generates week-by-week task calendar
+
+### Per-Week Weather-Integrated Task Calendar
+Each week object includes:
+- `expected_weather`: `{temp_range, rain_mm_week, humidity_pct, frost_risk, heat_stress, conditions}`
+- `weather_advisory`: Hinglish warning for the week
+- `week_cost_estimate`: estimated spend (seeds/fertiliser/labour)
+- `critical_window`: boolean — if true, week card shows CRITICAL badge
+- `date_range`: actual calendar dates computed from sowing_date
+- `plan_change_reason`: populated after adaptive update (shows UPDATED badge in UI)
+
+### Dashboard Tabs
+- **Tasks tab**: current week weather block (color-coded: blue=rain, red=heat, cyan=frost) + checkbox tasks + "🔄 Mausam Se Plan Update Karo" button
+- **Weather tab**: wttr.in 5-day forecast + Hinglish advisory
+- **Subsidies (Sahayata) tab**: `HARDCODED_SCHEMES` (19 schemes: 4 national + 15 state-specific for MH/PB/UP/RJ/MP/KA/GJ/HR); `extractState(location)` maps city→state to filter; live PIB RSS above if available
+- **Timeline tab**: expandable `WeekCard` components with per-week weather, cost, tasks + "Refresh Plan" button
+
+### Photo Health Check
+`POST /{id}/photo-check` → Gemini analyzes with fresh weather context → returns:
+- `health_score` (0-100), `observations`, `immediate_action`, `subsidy_tip`
+- `weather_related_risks`: risks amplified by current weather
+- `do_not_do`: actions to avoid given weather
+- `plan_update_needed`: boolean — if true, frontend auto-calls `/update-plan` with trigger `photo_check`
+
+### Adaptive Plan Update
+`POST /{id}/update-plan` with `{current_week, trigger}`:
+- Fetches fresh weather, optionally uses latest photo check result
+- Re-generates only remaining weeks (week > current_week) via Gemini
+- Merges updated weeks back into `task_calendar` in-place
+- Tracks `plan_updates_count` and `plan_update_log` in journey state
+- Frontend "🔄 Mausam Se Plan Update Karo" button triggers this manually
+
+### Journey Completion & Report
+- Enter selling price → `POST /{id}/complete` → AI generates report with `roi_percent`, `weather_impact` summary
+- `GET /{id}/report` → full report; frontend renders as PDF via jsPDF
+
+### State & Persistence
+- Journey stored in-memory `_journeys` dict — lost on server restart (acceptable for demo)
+- Journey ID in `localStorage kd_journey_id` — auto-restores on page reload
 
 ## Feature: Grade → Negotiate Seamless Flow
 1. User uploads crop photo on `/grade`
