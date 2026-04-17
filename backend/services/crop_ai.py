@@ -276,7 +276,8 @@ async def generate_task_calendar(crop_type: str, sowing_date: str, location: str
         for w in range(1, weeks + 1)
     ]
 
-    prompt = f"""Generate a complete, weather-aware farming task calendar for {crop_type} in India.
+    prompt = f"""Generate a COMPLETE, highly-detailed, weather-aware farming task calendar for {crop_type} in India.
+Be VERY SPECIFIC about chemicals — exact product names, quantities, dilution ratios, timing.
 
 Sowing date: {sowing_date} | Location: {location}
 Land: {land_size_acres} acres | Irrigation: {irrigation_type}
@@ -288,13 +289,18 @@ Current weather + 3-day forecast:
 Week date schedule:
 {json.dumps(week_dates, indent=2)}
 
-For EACH week generate:
+For EACH week generate ALL of:
 1. expected_weather — realistic seasonal forecast for that month/week in {location}
-   (use your knowledge of Indian seasonal patterns for that region + month)
-2. Tasks with weather-specific conditions
-3. weather_advisory — critical warning if any (frost, rain window, heat stress, pest pressure)
+2. Detailed tasks with specific chemical/fertilizer schedules
+3. weather_advisory — Hinglish warning (frost/rain window/heat stress/disease pressure)
 4. week_cost_estimate — total input cost for the week (₹/acre)
-5. critical_window — true if timing is critical (sowing, fertilizer, spray windows)
+5. critical_window — true if timing matters (sowing, top-dress, spray, harvest)
+
+CHEMICAL GUIDELINES for Indian {crop_type} farming:
+- Always specify actual product name (e.g., "Urea 46% N", "DAP 18-46-0", "MOP", "Chlorpyrifos 20EC", "Mancozeb 75WP", "Carbendazim 50WP", "Imidacloprid 17.8SL", "Atrazine 50WP", "Pendimethalin 30EC", "Zinc Sulphate", "Ferrous Sulphate", "Boron", etc.)
+- Give exact quantity per acre with dilution (e.g., "600ml/acre diluted in 200L water", "30 kg/acre dry broadcast")
+- Specify application_method: foliar spray | soil drench | basal incorporation | top-dress broadcast | seed treatment | fertigation
+- Specify timing: Morning (before 10am) | Evening (after 4pm) | Any time | Avoid if rain forecast within 24hrs
 
 Return ONLY valid JSON array (no markdown):
 [
@@ -312,28 +318,57 @@ Return ONLY valid JSON array (no markdown):
       "conditions": "Cool and dry — ideal for sowing"
     }},
     "weather_advisory": "Mitti mein 50% nami ho tabhi beejai kare",
-    "week_cost_estimate": "₹2,400",
+    "week_cost_estimate": "₹3,800",
     "critical_window": true,
     "tasks": [
       {{
         "task_id": "w1_t1",
         "title": "Khet ki tayaari aur beejai",
-        "desc": "2-3 jotaai ke baad beejai 4-5 cm gehraai mein kare",
+        "desc": "2-3 jotaai ke baad beejai 4-5 cm gehraai mein kare. Seed rate: 40 kg/acre. Row spacing 22.5cm, plant-to-plant 7.5cm.",
         "category": "sowing",
-        "weather_condition": "Only sow if soil moisture >50% — delay if very dry",
+        "weather_condition": "Soil moisture >50% zaroori — agar mitti sukhi ho toh pehle halki sinchai karo",
         "water_liters_per_acre": 4000,
-        "inputs": [{{"name": "Certified Seed", "quantity": "40 kg/acre", "cost_approx": "₹1200"}},
-                   {{"name": "DAP Basal", "quantity": "50 kg/acre", "cost_approx": "₹1400"}}],
+        "inputs": [
+          {{"name": "Certified Wheat Seed (HD-2967 / PBW-343)", "quantity": "40 kg/acre", "cost_approx": "₹1,200"}},
+          {{"name": "DAP 18-46-0", "quantity": "50 kg/acre", "cost_approx": "₹1,400"}},
+          {{"name": "Zinc Sulphate 21%", "quantity": "10 kg/acre", "cost_approx": "₹220"}}
+        ],
+        "chemicals": [
+          {{
+            "name": "DAP (Di-Ammonium Phosphate) 18-46-0",
+            "type": "fertilizer",
+            "quantity_per_acre": "50 kg",
+            "dilution": "Dry — basal incorporation",
+            "cost_approx": "₹1,400",
+            "application_method": "Basal incorporation — jotaai ke samay mitti mein milayen, beejai se pehle",
+            "timing": "Beejai se 1 din pehle ya saath mein"
+          }},
+          {{
+            "name": "Thiram 75WP (Seed Treatment)",
+            "type": "fungicide",
+            "quantity_per_acre": "2.5g per kg seed (100g total)",
+            "dilution": "Dry powder — seed coat karo",
+            "cost_approx": "₹60",
+            "application_method": "Seed treatment — beej ko Thiram se coat karein, chhaav mein sukhayein phir baeyein",
+            "timing": "Beejai se 12-24 ghante pehle ya turant pehle"
+          }}
+        ],
         "photo_needed": true,
         "critical": true
       }}
     ]
   }}
 ]
+
 categories: sowing|irrigation|fertilizer|pesticide|weeding|observation|harvest
-Set photo_needed=true for week 1, any disease/spray week, harvest week.
-Include EVERY week with realistic seasonal weather. Cover all {weeks} weeks.
-Task titles in Hinglish."""
+
+IMPORTANT:
+- Include specific fertilizer SPLIT DOSE schedule (e.g., Urea: 1/3 basal + 1/3 CRI + 1/3 flag leaf)
+- Name each pesticide spray week with exact product: e.g., "Chlorpyrifos 20EC @ 2ml/L" for aphids
+- For disease weeks: specific fungicide (Mancozeb for early blight, Carbendazim for powdery mildew)
+- For weed weeks: specific herbicide (Clodinafop-Propargyl for grass weeds in wheat, Atrazine for maize)
+- Set photo_needed=true for week 1, every spray/disease week, harvest week
+- Include EVERY week. Cover all {weeks} weeks. Task titles & descriptions in Hinglish."""
 
     try:
         r = await _client().aio.models.generate_content(model="gemini-2.5-flash", contents=prompt)
@@ -369,6 +404,7 @@ def _fallback_calendar(crop_type: str) -> list:
                     "weather_condition": "",
                     "water_liters_per_acre": 3000 if w % 2 == 0 else 0,
                     "inputs": [],
+                    "chemicals": [],
                     "photo_needed": w in (1, total),
                     "critical": w == total,
                 }

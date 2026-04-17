@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import jsPDF from 'jspdf'
 import { ErrorAlert, SpinnerIcon } from '../components/ui.jsx'
@@ -28,6 +29,58 @@ const WEATHER_ICON = (w) => {
 
 const MONTHS = ['January','February','March','April','May','June',
   'July','August','September','October','November','December']
+
+const CHEM_TYPE_COLOR = {
+  fertilizer: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20',
+  pesticide:  'bg-orange-500/15 text-orange-300 border-orange-500/20',
+  fungicide:  'bg-purple-500/15 text-purple-300 border-purple-500/20',
+  herbicide:  'bg-yellow-500/15 text-yellow-300 border-yellow-500/20',
+  insecticide:'bg-red-500/15 text-red-300 border-red-500/20',
+}
+const CHEM_ICON = { fertilizer:'⚗️', pesticide:'🧪', fungicide:'🔬', herbicide:'✂️', insecticide:'🐛' }
+
+function ChemicalDetail({ chemicals }) {
+  const [open, setOpen] = useState(false)
+  if (!chemicals?.length) return null
+  return (
+    <div className="mt-2">
+      <button onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+        className="flex items-center gap-1.5 text-[10px] text-amber-400 hover:text-amber-300 transition">
+        {open ? '▾' : '▸'} Rasayan & Urvarak Details ({chemicals.length})
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1.5" onClick={e => e.stopPropagation()}>
+          {chemicals.map((c, i) => {
+            const colorCls = CHEM_TYPE_COLOR[c.type] || 'bg-gray-700/50 text-gray-300 border-gray-600/30'
+            const icon = CHEM_ICON[c.type] || '⚗️'
+            return (
+              <div key={i} className={`rounded-lg border p-2.5 space-y-1 ${colorCls}`}>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span>{icon}</span>
+                  <span className="font-semibold text-[11px]">{c.name}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border ${colorCls}`}>
+                    {c.type}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-gray-300">
+                  <div><span className="text-gray-500">Matra:</span> {c.quantity_per_acre}</div>
+                  {c.dilution && <div><span className="text-gray-500">Ghol:</span> {c.dilution}</div>}
+                  {c.cost_approx && <div><span className="text-gray-500">Keemat:</span> {c.cost_approx}</div>}
+                  {c.timing && <div><span className="text-gray-500">Samay:</span> {c.timing}</div>}
+                </div>
+                {c.application_method && (
+                  <div className="text-[10px] text-gray-300 border-t border-current/20 pt-1 mt-0.5">
+                    <span className="text-gray-500">Kaise dalen:</span> {c.application_method}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const HARDCODED_SCHEMES = [
   { id: 'pm-kisan', name: 'PM-KISAN Samman Nidhi', desc: '₹6,000 annual direct cash transfer in 3 installments to all small/marginal landholding farmers.', state: 'all', link: 'https://pmkisan.gov.in/', tag: 'National' },
@@ -231,6 +284,7 @@ function WeekCard({ week, curWeek, completedTasks, onToggleTask }) {
                           ))}
                         </div>
                       )}
+                      <ChemicalDetail chemicals={task.chemicals} />
                     </div>
                   </div>
                 </div>
@@ -313,6 +367,7 @@ function QuestionForm({ questions, answers, setAnswers, round = 1 }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function CropJourney() {
+  const navigate = useNavigate()
   // mode: intro|questions|followup|recommendation|starting|dashboard|report
   const [mode, setMode] = useState('intro')
   const [location, setLocation] = useState('')
@@ -885,6 +940,29 @@ export default function CropJourney() {
           </>
         )}
         <button className={BTN_PRI} onClick={downloadReport}>📄 PDF Report Download Karo</button>
+
+        {/* Sell your crop — Grade → Negotiate pipeline */}
+        <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-500/30 rounded-xl p-4 space-y-3">
+          <div className="text-white font-semibold text-sm text-center">🌾 Ab Apni Fasal Beche</div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { localStorage.setItem('kd_harvest_crop', journey.crop_type); navigate('/grade') }}
+              className="bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-sm py-3 rounded-xl transition font-medium flex flex-col items-center gap-1">
+              <span className="text-xl">📸</span>
+              <span className="text-xs">Agmark Grade Karo</span>
+            </button>
+            <button
+              onClick={() => { localStorage.setItem('kd_harvest_crop', journey.crop_type); navigate('/negotiate') }}
+              className="bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-300 text-sm py-3 rounded-xl transition font-medium flex flex-col items-center gap-1">
+              <span className="text-xl">🤝</span>
+              <span className="text-xs">Daam Negotiate Karo</span>
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-500 text-center">
+            Grade A = 25% premium · Grade B = 15% premium over modal price
+          </p>
+        </div>
+
         <button onClick={resetJourney} className="w-full text-center text-gray-500 text-sm hover:text-gray-300 transition py-2">
           Nayi Journey Shuru Karo
         </button>
@@ -1032,6 +1110,7 @@ export default function CropJourney() {
                             ))}
                           </div>
                         )}
+                        <ChemicalDetail chemicals={task.chemicals} />
                       </div>
                     </div>
                   </div>
@@ -1052,6 +1131,34 @@ export default function CropJourney() {
                 </button>
               )}
             </div>
+
+            {/* Post-harvest sell CTA — shown when last week reached */}
+            {curWeek >= journey.total_weeks && (
+              <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-500/30 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{cropEmoji(journey.crop_type)}</span>
+                  <div>
+                    <div className="text-white font-bold text-sm">Fasal Harvest Ready Hai!</div>
+                    <div className="text-green-400 text-xs">Grade karwao aur best price mein beche</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => { localStorage.setItem('kd_harvest_crop', journey.crop_type); navigate('/grade') }}
+                    className="bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 font-medium">
+                    📸 Fasal Grade Karo
+                  </button>
+                  <button
+                    onClick={() => { localStorage.setItem('kd_harvest_crop', journey.crop_type); navigate('/negotiate') }}
+                    className="bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-300 text-xs py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 font-medium">
+                    🤝 Mandi Mein Beche
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500 text-center">
+                  Grade karke negotiate karne par 10-25% zyada daam milta hai
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1062,7 +1169,15 @@ export default function CropJourney() {
             {wxData?.current && (
               <>
                 <div className={CARD + ' space-y-3'}>
-                  <div className="text-xs text-gray-400 uppercase tracking-wide">Abhi Ka Mausam — {wxData.location}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-gray-400 uppercase tracking-wide">Abhi Ka Mausam — {wxData.location}</div>
+                    {wxData.source === 'ai_estimate' && (
+                      <span className="text-[9px] bg-amber-500/20 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-semibold">AI Estimate</span>
+                    )}
+                    {wxData.source === 'static_fallback' && (
+                      <span className="text-[9px] bg-red-500/20 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded">Offline</span>
+                    )}
+                  </div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-4xl font-bold text-white">{wxData.current.temp_c}°C</div>

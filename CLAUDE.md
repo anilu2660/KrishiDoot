@@ -59,9 +59,9 @@ backend/
     apmc_api.py        → Done (MANDI_DB + coords, get_mandi_prices, FALLBACK_PRICES; get_modal_price uses local DB when DEMO_KEY set — no live API hit)
     vision.py          → Done (Gemini 2.5 Flash, auto-detect crop_type="auto")
     guardrails.py      → Done
-    weather_api.py     → Done (wttr.in free API, 5-min cache, current + 5-day forecast + Hinglish advisory; no API key)
+    weather_api.py     → Done (wttr.in free API, 5-min cache; Gemini fallback if wttr.in fails → realistic AI-generated weather; static fallback if both fail; source field: wttr.in|ai_estimate|static_fallback)
     subsidy_rss.py     → Done (PIB Agriculture RSS feed, 1-hr cache, crop/state keyword filtering)
-    crop_ai.py         → Done (all Crop Journey AI: 2-round questions, analyze+recommend, task calendar with per-week weather, photo health check, adaptive plan update, journey report)
+    crop_ai.py         → Done (all Crop Journey AI: 2-round questions, analyze+recommend, task calendar with per-week weather + detailed chemicals[], photo health check, adaptive plan update, journey report)
   agents/              → Done (farmer_agent Hinglish, buyer_agent, orchestrator)
   db/schema.sql        → Person 1 (run once in Supabase SQL editor)
   telegram_bot/        → Person 1 (done)
@@ -117,6 +117,16 @@ Each week object includes:
 - `date_range`: actual calendar dates computed from sowing_date
 - `plan_change_reason`: populated after adaptive update (shows UPDATED badge in UI)
 
+Each task within a week includes a `chemicals[]` array:
+- `name`: specific product name (e.g., "Chlorpyrifos 20EC", "Urea 46% N", "Mancozeb 75WP")
+- `type`: fertilizer | pesticide | fungicide | herbicide | insecticide
+- `quantity_per_acre`: exact dose with unit
+- `dilution`: e.g., "2ml/L → 200L water/acre" or "Dry broadcast"
+- `cost_approx`: ₹ per acre
+- `application_method`: foliar spray | basal incorporation | top-dress | seed treatment | fertigation
+- `timing`: Morning | Evening | Avoid if rain forecast
+- Frontend shows `ChemicalDetail` expandable section per task (color-coded by type)
+
 ### Dashboard Tabs
 - **Tasks tab**: current week weather block (color-coded: blue=rain, red=heat, cyan=frost) + checkbox tasks + "🔄 Mausam Se Plan Update Karo" button
 - **Weather tab**: wttr.in 5-day forecast + Hinglish advisory
@@ -137,6 +147,20 @@ Each week object includes:
 - Merges updated weeks back into `task_calendar` in-place
 - Tracks `plan_updates_count` and `plan_update_log` in journey state
 - Frontend "🔄 Mausam Se Plan Update Karo" button triggers this manually
+
+### Post-Harvest Redirect — Grade → Negotiate Pipeline
+When last week of the journey is reached (`curWeek >= total_weeks`):
+- Tasks tab shows "Fasal Harvest Ready Hai!" card with two buttons
+- "📸 Fasal Grade Karo" → stores `kd_harvest_crop` in localStorage → navigates to `/grade`
+- "🤝 Mandi Mein Beche" → navigates to `/negotiate`
+- Same buttons repeated on the report page after PDF download
+- This closes the full beejai-to-bikri loop: Grow → Grade → Negotiate
+
+### Weather Fallback Chain
+`weather_api.py` tries in order:
+1. **wttr.in** (free live API, 5-min cache) — returns `source: "wttr.in"`
+2. **Gemini AI** (if wttr.in fails) — generates realistic weather from regional climate knowledge — returns `source: "ai_estimate"` — shown with amber "AI Estimate" badge in weather tab
+3. **Static fallback** (if Gemini also fails) — returns `source: "static_fallback"` — shown with red "Offline" badge
 
 ### Journey Completion & Report
 - Enter selling price → `POST /{id}/complete` → AI generates report with `roi_percent`, `weather_impact` summary
