@@ -4,6 +4,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: ajup738/krishidoot-backend:latest
     container_name: krishidoot_backend
     restart: unless-stopped
     ports:
@@ -29,6 +30,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: ajup738/krishidoot-frontend:latest
     container_name: krishidoot_frontend
     restart: unless-stopped
     ports:
