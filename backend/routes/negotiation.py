@@ -15,6 +15,7 @@ from models.negotiation import (
 from services.apmc_api import compute_batna, get_modal_price
 from services.guardrails import FloorBreachException
 from services.guardrails import sanitize_dialogue
+from services.tts import generate_speech
 from services.vision import grade_crop_image
 
 router = APIRouter()
@@ -46,7 +47,7 @@ def _latest_farmer_dialogue(state: MultiAgentState) -> str:
 
 
 @router.post("/start", response_model=NegotiationStartResponse)
-async def start_negotiation(request: NegotiationStartRequest):
+async def start_negotiation(request: NegotiationStartRequest, voice_mode: bool = False):
     """
     Start a negotiation session.
     1. Fetch APMC modal price (Person 1 - done)
@@ -101,11 +102,15 @@ async def start_negotiation(request: NegotiationStartRequest):
     )
     _sessions[session_id] = _serialize_state(negotiation_state)
 
+    opening_text = _opening_message(initial_ask)
+    audio_b64 = await generate_speech(opening_text) if voice_mode else None
+
     return NegotiationStartResponse(
         session_id=session_id,
         batna_price=batna,
         initial_ask=initial_ask,
         grade_report=grade_report,
+        audio_b64=audio_b64,
     )
 
 
@@ -144,11 +149,14 @@ async def respond_to_offer(request: NegotiationRespondRequest):
         state.status = "agreed"
         state.final_price = buyer_offer
         _sessions[request.session_id] = _serialize_state(state)
+        agreed_text = f"Shukriya! ₹{buyer_offer}/kg par deal pakki hui. Bahut accha kaam kiya!"
+        audio_b64 = await generate_speech(agreed_text) if request.voice_mode else None
         return NegotiationRespondResponse(
-            agent_dialogue=f"Agreed! ₹{buyer_offer}/kg is acceptable.",
+            agent_dialogue=agreed_text,
             new_ask=buyer_offer,
             status="agreed",
             final_price=buyer_offer,
+            audio_b64=audio_b64,
         )
 
     try:
@@ -156,16 +164,23 @@ async def respond_to_offer(request: NegotiationRespondRequest):
     except FloorBreachException:
         state.status = "rejected"
         _sessions[request.session_id] = _serialize_state(state)
+        rejected_text = "Mafi karna, is daam par deal sambhav nahi. Meri lagat nahi nikalti."
+        audio_b64 = await generate_speech(rejected_text) if request.voice_mode else None
         return NegotiationRespondResponse(
-            agent_dialogue="I cannot reduce the price further without going below a safe minimum.",
+            agent_dialogue=rejected_text,
             new_ask=state.current_ask,
             status="rejected",
+            audio_b64=audio_b64,
         )
     _sessions[request.session_id] = _serialize_state(state)
 
+    dialogue = _latest_farmer_dialogue(state)
+    audio_b64 = await generate_speech(dialogue) if request.voice_mode else None
+
     return NegotiationRespondResponse(
-        agent_dialogue=_latest_farmer_dialogue(state),
+        agent_dialogue=dialogue,
         new_ask=state.current_ask,
         status=state.status,
         final_price=state.final_price,
+        audio_b64=audio_b64,
     )
