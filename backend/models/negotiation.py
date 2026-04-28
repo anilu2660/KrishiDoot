@@ -34,7 +34,8 @@ class NegotiationRespondRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     session_id: str = Field(min_length=1)
-    buyer_counter_offer: float = Field(gt=0)      # ₹/kg from buyer
+    buyer_message: str = Field(min_length=1)       # Actual text from the user
+    buyer_counter_offer: Optional[float] = None    # ₹/kg from buyer (optional fallback)
     voice_mode: bool = False                       # if True, return audio_b64 in response
 
     @field_validator("session_id", mode="before")

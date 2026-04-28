@@ -70,23 +70,23 @@ export default function Negotiate() {
   const successRef = useRef(null)
   const portfolioRef = useRef(null)
 
-  // Play base64 WAV audio from TTS response
-  const playAudio = useCallback((b64) => {
-    if (!b64) return
+  // Play audio from TTS response
+  const playAudio = useCallback((src) => {
+    if (!src) return
     try {
-      const blob = new Blob(
-        [Uint8Array.from(atob(b64), c => c.charCodeAt(0))],
-        { type: 'audio/wav' }
-      )
-      const url = URL.createObjectURL(blob)
+      if (!src.startsWith('data:')) {
+         src = `data:audio/wav;base64,${src}`
+      }
       if (audioRef.current) {
         audioRef.current.pause()
-        URL.revokeObjectURL(audioRef.current.src)
+        if (audioRef.current.src.startsWith('blob:')) {
+          URL.revokeObjectURL(audioRef.current.src)
+        }
       }
-      audioRef.current = new Audio(url)
-      audioRef.current.play().catch(() => {})
+      audioRef.current = new Audio(src)
+      audioRef.current.play().catch(e => console.warn('[TTS] Playback failed:', e))
     } catch (e) {
-      console.warn('[TTS] Playback failed:', e)
+      console.warn('[TTS] Setup failed:', e)
     }
   }, [])
 
@@ -143,15 +143,20 @@ export default function Negotiate() {
     setMessages(prev => [...prev, { role: 'buyer', content: msg }])
     setLoading(true)
 
-    // Extract numeric price from buyer message
+    // Extract numeric price from buyer message as fallback
     const priceMatch = msg.match(/(\d+(?:\.\d+)?)/)
-    const buyerOffer = priceMatch ? parseFloat(priceMatch[1]) : (currentOffer > 0 ? currentOffer * 0.85 : 15)
+    const buyerOffer = priceMatch ? parseFloat(priceMatch[1]) : null
 
     try {
       const res = await fetch(`${API_BASE}/negotiate/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, buyer_counter_offer: buyerOffer, voice_mode: voiceMode })
+        body: JSON.stringify({ 
+          session_id: sessionId, 
+          buyer_message: msg,
+          buyer_counter_offer: buyerOffer, 
+          voice_mode: voiceMode 
+        })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Failed to send')

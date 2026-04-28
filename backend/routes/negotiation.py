@@ -1,9 +1,13 @@
 import uuid
+import re
+import json
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
+from google import genai
 
+from config import settings
 from agents.orchestrator import run_negotiation_round
 from agents.state import MultiAgentState, is_perishable_crop
 from models.negotiation import (
@@ -30,6 +34,37 @@ def _serialize_state(state: MultiAgentState) -> dict:
 
 def _hydrate_state(payload: dict) -> MultiAgentState:
     return MultiAgentState(**payload)
+
+async def _extract_price_from_text(text: str, current_ask: float) -> float:
+    if not settings.GEMINI_API_KEY:
+        match = re.search(r"(\d+(?:\.\d+)?)", text)
+        return float(match.group(1)) if match else round(current_ask * 0.85, 2)
+        
+    prompt = f"""Extract the numerical price offer from the buyer's message.
+Buyer message: "{text}"
+Current asking price: ₹{current_ask}/kg
+
+If the buyer proposes a specific price per kg, return that number.
+If the buyer asks for a percentage discount, calculate it.
+If the buyer just says "too high" or "reduce it" without a number, guess a reasonable counter-offer (e.g., 10-15% less).
+Return ONLY a JSON object with the key 'price'.
+Example: {{"price": 45.0}}
+"""
+    try:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        raw = response.text.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.DOTALL)
+        payload = json.loads(raw)
+        return float(payload.get("price", current_ask * 0.85))
+    except Exception:
+        match = re.search(r"(\d+(?:\.\d+)?)", text)
+        return float(match.group(1)) if match else round(current_ask * 0.85, 2)
+
 
 
 def _opening_message(initial_ask: float) -> str:
@@ -132,13 +167,19 @@ async def respond_to_offer(request: NegotiationRespondRequest):
             detail=f"Negotiation is already {state.status}. Start a new session to continue.",
         )
 
-    buyer_offer = request.buyer_counter_offer
+    if request.buyer_counter_offer is not None and request.buyer_counter_offer > 0:
+        buyer_offer = request.buyer_counter_offer
+    else:
+        buyer_offer = await _extract_price_from_text(request.buyer_message, state.current_ask)
+
     state.buyer_last_offer = buyer_offer
     state.buyer_offer_source = "real"
+    
+    # Store the ACTUAL message from the user instead of hardcoded
     state.dialogue_history.append(
         {
             "role": "buyer",
-            "message": sanitize_dialogue(f"I can pay ₹{buyer_offer}/kg."),
+            "message": sanitize_dialogue(request.buyer_message),
             "price": buyer_offer,
             "round": state.round_number + 1,
         }
